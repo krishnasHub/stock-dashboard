@@ -15,7 +15,7 @@ export function formatDate(dateStr, period) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function mergeToPercentChange(seriesMap, orderedSymbols) {
+export function mergeToPercentChange(seriesMap, orderedSymbols) {
   const normalized = {};
   for (const sym of orderedSymbols) {
     const quotes = seriesMap[sym];

@@ -124,6 +124,43 @@ npm run dev
 
 ---
 
+## Running tests
+
+The project has two independent test suites — one for the Express backend and one for the React frontend.
+
+### Backend (Jest + Supertest)
+
+```bash
+# Run tests with coverage
+npm test
+```
+
+Covers all four API endpoints (`/api/quotes`, `/api/history`, `/api/search`, `/api/news`) including error paths and edge cases. Target: **≥ 96% statement coverage** on `server.js`.
+
+### Frontend (Vitest + React Testing Library)
+
+```bash
+cd client
+
+# Run tests once
+npm test
+
+# Watch mode (re-runs on file save)
+npm run test:watch
+
+# Run with coverage report
+npm run test:coverage
+```
+
+| Test file | What it covers |
+|-----------|---------------|
+| `StockCard.test.jsx` | Renders, up/down colours, selected/compare borders, click handlers, hover effect |
+| `NewsFeed.test.jsx` | Loading state, items, active highlight, click, hover, image error handler |
+| `StockChart.test.jsx` | `formatDate` utility, `mergeToPercentChange` logic, single vs compare chart modes |
+| `App.test.jsx` | Mount, quote loading, mode switching, index overlay, add/remove stock, news expand |
+
+---
+
 ## Default stock list
 
 ```
