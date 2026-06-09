@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useId } from 'react';
 import axios from 'axios';
 import StockCard from './components/StockCard';
 import StockChart from './components/StockChart';
@@ -30,10 +30,15 @@ export default function App() {
   const [chartLoading, setChartLoading] = useState(false);
   const [quotesError, setQuotesError] = useState(null);
   const [addInput, setAddInput] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [activeView, setActiveView] = useState('chart');
   const [newsIndex, setNewsIndex] = useState(0);
   const intervalRef = useRef(null);
   const newsCycleRef = useRef(null);
+  const searchTimerRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const fetchQuotes = useCallback(async (symbolList) => {
     try {
@@ -94,6 +99,55 @@ export default function App() {
     return () => clearInterval(newsCycleRef.current);
   }, [activeView, news]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClick(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  function handleAddInput(e) {
+    const val = e.target.value;
+    setAddInput(val);
+    clearTimeout(searchTimerRef.current);
+
+    if (!val.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    searchTimerRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await axios.get(
+          `http://localhost:3001/api/search?q=${encodeURIComponent(val.trim())}`
+        );
+        setSuggestions(res.data);
+        setShowSuggestions(res.data.length > 0);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+  }
+
+  function commitSymbol(symbol) {
+    if (!symbol || stocks.includes(symbol)) return;
+    const next = [...stocks, symbol];
+    setStocks(next);
+    fetchQuotes(next);
+    selectStock(symbol);
+    setAddInput('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+
   function selectStock(sym) {
     setSelectedStock(sym);
     setActiveView('chart');
@@ -117,13 +171,24 @@ export default function App() {
 
   function addStock(e) {
     e.preventDefault();
-    const sym = addInput.trim().toUpperCase();
-    if (!sym || stocks.includes(sym)) { setAddInput(''); return; }
-    const next = [...stocks, sym];
-    setStocks(next);
-    fetchQuotes(next);
-    selectStock(sym);
-    setAddInput('');
+    const raw = addInput.trim();
+    if (!raw) return;
+
+    // Pure ticker pattern — add directly without search
+    const isTickerPattern = /^[A-Z0-9]{1,5}(-[A-Z]{1,2})?$/.test(raw.toUpperCase());
+    if (isTickerPattern) {
+      commitSymbol(raw.toUpperCase());
+      return;
+    }
+
+    // If we already have suggestions, use the first one
+    if (suggestions.length > 0) {
+      commitSymbol(suggestions[0].symbol);
+      return;
+    }
+
+    // Otherwise kick off a search and wait for the dropdown
+    setShowSuggestions(true);
   }
 
   function removeStock(sym) {
@@ -142,12 +207,32 @@ export default function App() {
       <header className="header">
         <h1>Stock Dashboard</h1>
         <form className="add-stock-form" onSubmit={addStock}>
-          <input
-            value={addInput}
-            onChange={e => setAddInput(e.target.value)}
-            placeholder="Add ticker…"
-            maxLength={10}
-          />
+          <div className="ticker-input-wrap" ref={dropdownRef}>
+            <input
+              value={addInput}
+              onChange={handleAddInput}
+              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              placeholder="Ticker or company name…"
+              maxLength={60}
+              autoComplete="off"
+            />
+            {searching && <span className="ticker-searching">⟳</span>}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="ticker-dropdown">
+                {suggestions.map(s => (
+                  <div
+                    key={s.symbol}
+                    className="ticker-suggestion"
+                    onMouseDown={e => { e.preventDefault(); commitSymbol(s.symbol); }}
+                  >
+                    <span className="suggestion-symbol">{s.symbol}</span>
+                    <span className="suggestion-name">{s.name}</span>
+                    {s.exchange && <span className="suggestion-exchange">{s.exchange}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <button type="submit" className="btn-add">Add</button>
         </form>
       </header>

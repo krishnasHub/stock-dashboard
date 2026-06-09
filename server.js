@@ -76,6 +76,28 @@ app.get('/api/history/:symbol', async (req, res) => {
   }
 });
 
+app.get('/api/search', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json([]);
+
+    const result = await yahooFinance.search(q, { quotesCount: 8, newsCount: 0 });
+    const matches = (result.quotes || [])
+      .filter(item => item.quoteType === 'EQUITY' || item.quoteType === 'ETF')
+      .slice(0, 6)
+      .map(item => ({
+        symbol: item.symbol,
+        name: item.shortname || item.longname || item.symbol,
+        exchange: item.exchDisp || item.exchange || '',
+      }));
+
+    res.json(matches);
+  } catch (err) {
+    console.error('search error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/news', async (req, res) => {
   try {
     const result = await yahooFinance.search('stock market', { newsCount: 10 });
